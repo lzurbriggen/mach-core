@@ -52,6 +52,7 @@ pub fn build(
     }{
         .{ .name = "wasm-test" },
         .{ .name = "triangle" },
+        .{ .name = "triangle-instanced" },
         .{ .name = "triangle-msaa" },
         .{ .name = "clear-color" },
         .{ .name = "procedural-primitives" },
