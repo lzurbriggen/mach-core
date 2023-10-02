@@ -38,7 +38,7 @@ pub fn init(app: *App) !void {
         },
     });
 
-    const second_vertex_buffer_layout = gpu.VertexBufferLayout.init(.{
+    const instance_vertex_buffer_layout = gpu.VertexBufferLayout.init(.{
         .array_stride = @sizeOf(Vertex),
         .step_mode = .instance,
         .attributes = &[_]gpu.VertexAttribute{
@@ -51,7 +51,7 @@ pub fn init(app: *App) !void {
         .vertex = gpu.VertexState.init(.{
             .module = shader_module,
             .entry_point = "vertex_main",
-            .buffers = &.{ vertex_buffer_layout, second_vertex_buffer_layout },
+            .buffers = &.{ vertex_buffer_layout, instance_vertex_buffer_layout },
         }),
         .primitive = .{ .cull_mode = .none },
     };
@@ -134,7 +134,7 @@ pub fn update(app: *App) !bool {
     std.mem.copy(Vertex, vertex_mapped.?, &vertices);
     vertex_buffer.unmap();
 
-    // second vertex buffer
+    // instance vertex buffer
     var instance_data: [num_instances]Instance = undefined;
     for (0..num_instances) |i| {
         const if32 = @as(f32, @floatFromInt(i));
