@@ -183,7 +183,6 @@ pub fn update(app: *App) !bool {
         .usage = .{ .indirect = true, .copy_dst = true },
         .size = indirect_data.len * @sizeOf(u32),
         .mapped_at_creation = .true,
-        .label = "indirect",
     });
     var indirect_mapping = indirect_buffer.getMappedRange(u32, 0, indirect_data.len).?;
     std.mem.copy(u32, indirect_mapping[0..indirect_data.len], &indirect_data);

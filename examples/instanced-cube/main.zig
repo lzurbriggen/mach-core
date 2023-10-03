@@ -16,10 +16,19 @@ title_timer: core.Timer,
 timer: core.Timer,
 pipeline: *gpu.RenderPipeline,
 vertex_buffer: *gpu.Buffer,
+instance_vertex_buffer: *gpu.Buffer,
 uniform_buffer: *gpu.Buffer,
 bind_group: *gpu.BindGroup,
 
 pub const App = @This();
+
+const x_count = 4;
+const y_count = 4;
+const num_instances = x_count * y_count;
+
+const Instance = extern struct {
+    color: @Vector(4, f32),
+};
 
 pub fn init(app: *App) !void {
     try core.init(.{});
@@ -59,13 +68,22 @@ pub fn init(app: *App) !void {
         .bind_group_layouts = &bind_group_layouts,
     }));
 
+    const instance_vertex_attributes = [_]gpu.VertexAttribute{
+        .{ .format = .float32x4, .offset = @offsetOf(Instance, "color"), .shader_location = 2 },
+    };
+    const instance_vertex_buffer_layout = gpu.VertexBufferLayout.init(.{
+        .array_stride = @sizeOf(Instance),
+        .step_mode = .instance,
+        .attributes = &instance_vertex_attributes,
+    });
+
     const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
         .fragment = &fragment,
         .layout = pipeline_layout,
         .vertex = gpu.VertexState.init(.{
             .module = shader_module,
             .entry_point = "vertex_main",
-            .buffers = &.{vertex_buffer_layout},
+            .buffers = &.{ vertex_buffer_layout, instance_vertex_buffer_layout },
         }),
         .primitive = .{
             .cull_mode = .back,
@@ -80,10 +98,6 @@ pub fn init(app: *App) !void {
     var vertex_mapped = vertex_buffer.getMappedRange(Vertex, 0, vertices.len);
     std.mem.copy(Vertex, vertex_mapped.?, vertices[0..]);
     vertex_buffer.unmap();
-
-    const x_count = 4;
-    const y_count = 4;
-    const num_instances = x_count * y_count;
 
     const uniform_buffer = core.device.createBuffer(&.{
         .usage = .{ .copy_dst = true, .uniform = true },
@@ -102,6 +116,7 @@ pub fn init(app: *App) !void {
     app.title_timer = try core.Timer.start();
     app.pipeline = core.device.createRenderPipeline(&pipeline_descriptor);
     app.vertex_buffer = vertex_buffer;
+    // app.instance_vertex_buffer = instance_vertex_buffer;
     app.uniform_buffer = uniform_buffer;
     app.bind_group = bind_group;
 
@@ -144,6 +159,7 @@ pub fn update(app: *App) !bool {
         .color_attachments = &.{color_attachment},
     });
 
+    var instance_vbos: [num_instances]Instance = undefined;
     {
         const proj = zm.perspectiveFovRh(
             (std.math.pi / 3.0),
@@ -168,6 +184,14 @@ pub fn update(app: *App) !bool {
                     .mat = mvp,
                 };
                 ubos[m] = ubo;
+
+                const m_f = @as(f32, @floatFromInt(m));
+                const num_instances_f = @as(f32, @floatFromInt(num_instances));
+                instance_vbos[m] = Instance{
+                    // different color per instance
+                    .color = .{ m_f / num_instances_f, (1 - m_f / num_instances_f), 0, 1 },
+                };
+
                 m += 1;
             }
         }
@@ -175,6 +199,19 @@ pub fn update(app: *App) !bool {
     }
 
     const pass = encoder.beginRenderPass(&render_pass_info);
+
+    const instance_vertex_buffer = core.device.createBuffer(&.{
+        .usage = .{ .vertex = true },
+        .size = @sizeOf(Instance) * num_instances,
+        .mapped_at_creation = .true,
+    });
+    defer instance_vertex_buffer.release();
+
+    pass.setVertexBuffer(1, instance_vertex_buffer, 0, @sizeOf(Instance) * instance_vbos.len);
+    var instance_vertex_mapped = instance_vertex_buffer.getMappedRange(Instance, 0, instance_vbos.len);
+    std.mem.copy(Instance, instance_vertex_mapped.?, &instance_vbos);
+    instance_vertex_buffer.unmap();
+
     pass.setPipeline(app.pipeline);
     pass.setVertexBuffer(0, app.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
     pass.setBindGroup(0, app.bind_group, &.{0});
